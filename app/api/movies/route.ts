@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TMDBMovieRaw, TMDBMovieDetail, Movie } from "@/types";
 
-// Fetch runtime details for a list of movie IDs
 async function fetchMovieDetails(ids: number[], apiKey: string): Promise<Movie[]> {
   const details = await Promise.all(
     ids.map(async (id) => {
@@ -26,63 +25,63 @@ async function fetchMovieDetails(ids: number[], apiKey: string): Promise<Movie[]
   return details.filter(Boolean) as Movie[];
 }
 
-// Simple combination finder: find combos of movies whose total runtime <= budget
-function findBestCombinations(movies: Movie[], budget: number, maxMovies: number): Movie[][] {
-  const sorted = [...movies].sort((a, b) => b.runtime - a.runtime);
-  const results: Movie[][] = [];
+function avgRating(movies: Movie[]): number {
+  return movies.reduce((sum, m) => sum + m.vote_average, 0) / movies.length;
+}
 
-  // Single movie: best fit (closest to budget without exceeding)
-  const singles = sorted.filter((m) => m.runtime <= budget);
-  if (singles.length > 0) {
-    results.push([singles[0]]);
+function findCombosOfSize(
+  movies: Movie[],
+  budget: number,
+  size: number,
+  start: number,
+  current: Movie[],
+  results: Movie[][]
+): void {
+  if (current.length === size) {
+    const total = current.reduce((s, m) => s + m.runtime, 0);
+    if (total <= budget) results.push([...current]);
+    return;
+  }
+  const remaining = size - current.length;
+  for (let i = start; i <= movies.length - remaining; i++) {
+    current.push(movies[i]);
+    findCombosOfSize(movies, budget, size, i + 1, current, results);
+    current.pop();
+    // Early exit once we have plenty of results
+    if (results.length >= 60) return;
+  }
+}
+
+function findCombinationsBySize(
+  movies: Movie[],
+  budget: number,
+  maxMovies: number
+): Record<number, Movie[][]> {
+  // Use top-rated movies as candidates to keep search space manageable
+  const candidates = [...movies]
+    .sort((a, b) => b.vote_average - a.vote_average)
+    .slice(0, 25);
+
+  const bySize: Record<number, Movie[][]> = {};
+
+  for (let size = 1; size <= maxMovies; size++) {
+    const combos: Movie[][] = [];
+    findCombosOfSize(candidates, budget, size, 0, [], combos);
+
+    // Sort each group by average rating (desc)
+    combos.sort((a, b) => avgRating(b) - avgRating(a));
+
+    bySize[size] = combos.slice(0, 10);
   }
 
-  if (maxMovies >= 2) {
-    // Pairs
-    for (let i = 0; i < sorted.length && results.length < 5; i++) {
-      for (let j = i + 1; j < sorted.length; j++) {
-        const total = sorted[i].runtime + sorted[j].runtime;
-        if (total <= budget) {
-          results.push([sorted[i], sorted[j]]);
-          break;
-        }
-      }
-    }
-  }
-
-  if (maxMovies >= 3) {
-    // Triples
-    for (let i = 0; i < sorted.length && results.length < 8; i++) {
-      for (let j = i + 1; j < sorted.length; j++) {
-        for (let k = j + 1; k < sorted.length; k++) {
-          const total = sorted[i].runtime + sorted[j].runtime + sorted[k].runtime;
-          if (total <= budget) {
-            results.push([sorted[i], sorted[j], sorted[k]]);
-            break;
-          }
-        }
-      }
-    }
-  }
-
-  // Deduplicate by movie id sets
-  const seen = new Set<string>();
-  return results.filter((combo) => {
-    const key = combo
-      .map((m) => m.id)
-      .sort()
-      .join(",");
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  return bySize;
 }
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const minutes = parseInt(searchParams.get("minutes") || "0");
   const genreIds = searchParams.get("genres") || "";
-  const maxMovies = parseInt(searchParams.get("maxMovies") || "2");
+  const maxMovies = Math.min(parseInt(searchParams.get("maxMovies") || "2"), 5);
 
   if (!minutes || minutes < 30) {
     return NextResponse.json({ error: "Invalid duration" }, { status: 400 });
@@ -94,9 +93,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Fetch popular movies filtered by genre, multiple pages for variety
     const pages = [1, 2, 3];
-    const genreParam = genreIds ? `&with_genres=${genreIds}` : "";
+    // Use pipe-separated genre IDs so TMDB treats them as OR (comma = AND, pipe = OR)
+    const genreParam = genreIds ? `&with_genres=${genreIds.replace(/,/g, "|")}` : "";
 
     const fetchedPages = await Promise.all(
       pages.map((page) =>
@@ -109,13 +108,11 @@ export async function GET(request: NextRequest) {
     const rawMovies: TMDBMovieRaw[] = fetchedPages.flatMap((p) => p.results || []);
     const uniqueIds = [...new Set(rawMovies.map((m) => m.id))].slice(0, 40);
 
-    // Get runtimes
     const movies = await fetchMovieDetails(uniqueIds, apiKey);
 
-    // Find combinations
-    const combinations = findBestCombinations(movies, minutes, maxMovies);
+    const bySize = findCombinationsBySize(movies, minutes, maxMovies);
 
-    return NextResponse.json({ combinations, totalFetched: movies.length });
+    return NextResponse.json({ bySize, totalFetched: movies.length });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Failed to fetch movies" }, { status: 500 });
