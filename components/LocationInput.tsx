@@ -1,11 +1,8 @@
 "use client";
-// Importaciones de React, hooks y componentes de interfaz necesarios.
 import { useState, useEffect, useRef } from "react";
 import { MapPin, Loader2 } from "lucide-react";
 import { GeocodingResult } from "@/types";
 
-// Props del componente: texto placeholder, callback al seleccionar una ubicación,
-// valor actual del campo y callback para actualizar ese valor.
 interface Props {
   placeholder: string;
   onSelect: (result: GeocodingResult) => void;
@@ -14,19 +11,15 @@ interface Props {
 }
 
 // Componente de entrada de ubicación con autocompletado.
-// Consulta la API de geocodificación mientras el usuario escribe (con debounce de 350ms)
-// y muestra un listado desplegable de sugerencias para elegir.
+// Consulta la acción "geocode" del endpoint unificado mientras el usuario escribe
+// (con debounce de 350ms) y muestra un listado desplegable de sugerencias.
 export default function LocationInput({ placeholder, onSelect, value, onChange }: Props) {
-  // Lista de resultados de geocodificación y estados de carga/visibilidad del desplegable.
   const [results, setResults] = useState<GeocodingResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  // Ref para el temporizador de debounce, evitando llamadas innecesarias a la API.
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Ref para saber si el usuario está seleccionando un resultado (evita cerrar el desplegable prematuramente).
   const selectingRef = useRef(false);
 
-  // Efecto que dispara la búsqueda de geocodificación cada vez que cambia el valor del campo.
   useEffect(() => {
     if (selectingRef.current) return;
     if (value.length < 3) { setResults([]); setOpen(false); return; }
@@ -34,7 +27,11 @@ export default function LocationInput({ placeholder, onSelect, value, onChange }
     debounce.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/geocode?text=${encodeURIComponent(value)}`);
+        const res = await fetch("/api/recommendations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "geocode", text: value }),
+        });
         const data = await res.json();
         setResults(data.results || []);
         if (!selectingRef.current) setOpen(true);
@@ -46,93 +43,43 @@ export default function LocationInput({ placeholder, onSelect, value, onChange }
 
   return (
     <div style={{ position: "relative", width: "100%" }}>
-      {/* Campo de texto con ícono de pin a la izquierda e indicador de carga a la derecha */}
       <div style={{ position: "relative" }}>
-        <MapPin
-          size={16}
-          style={{
-            position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)",
-            color: "var(--accent)", pointerEvents: "none",
-          }}
-        />
+        <MapPin size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--accent)", pointerEvents: "none" }} />
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           onFocus={() => results.length > 0 && setOpen(true)}
-          onBlur={() => {
-            if (!selectingRef.current) setOpen(false);
-          }}
-          style={{
-            width: "100%",
-            background: "var(--surface2)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius)",
-            color: "var(--text)",
-            fontFamily: "var(--font-body)",
-            fontSize: "0.95rem",
-            padding: "12px 14px 12px 40px",
-            outline: "none",
-            transition: "border-color 0.2s",
-          }}
+          onBlur={() => { if (!selectingRef.current) setOpen(false); }}
+          style={{ width: "100%", background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", color: "var(--text)", fontFamily: "var(--font-body)", fontSize: "0.95rem", padding: "12px 14px 12px 40px", outline: "none", transition: "border-color 0.2s" }}
           onMouseOver={(e) => (e.currentTarget.style.borderColor = "var(--accent)")}
           onMouseOut={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
         />
         {loading && (
-          <Loader2
-            size={14}
-            style={{
-              position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
-              color: "var(--text-muted)", animation: "spin 1s linear infinite",
-            }}
-          />
+          <Loader2 size={14} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", animation: "spin 1s linear infinite" }} />
         )}
       </div>
 
       {open && results.length > 0 && (
-        // Desplegable con las sugerencias de ubicaciones encontradas.
-        // Cada opción, al hacer clic, actualiza el campo y cierra el listado.
-        <div
-          style={{
-            position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0,
-            background: "var(--surface2)", border: "1px solid var(--border)",
-            borderRadius: "var(--radius)", overflow: "hidden", zIndex: 100,
-            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-          }}
-        >
+        <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden", zIndex: 100, boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
           {results.map((r, i) => (
             <button
               key={i}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                selectingRef.current = true;
-              }}
+              onMouseDown={(e) => { e.preventDefault(); selectingRef.current = true; }}
               onClick={() => {
                 onSelect(r);
                 onChange(r.label);
                 if (debounce.current) clearTimeout(debounce.current);
                 setOpen(false);
                 setResults([]);
-                setTimeout(() => {
-                  selectingRef.current = false;
-                }, 0);
+                setTimeout(() => { selectingRef.current = false; }, 0);
               }}
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                width: "100%", padding: "10px 14px",
-                background: "transparent", border: "none",
-                color: "var(--text)", fontFamily: "var(--font-body)",
-                fontSize: "0.88rem", cursor: "pointer", textAlign: "left",
-                borderBottom: i < results.length - 1 ? "1px solid var(--border)" : "none",
-                transition: "background 0.15s",
-              }}
+              style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 14px", background: "transparent", border: "none", color: "var(--text)", fontFamily: "var(--font-body)", fontSize: "0.88rem", cursor: "pointer", textAlign: "left", borderBottom: i < results.length - 1 ? "1px solid var(--border)" : "none", transition: "background 0.15s" }}
               onMouseOver={(e) => (e.currentTarget.style.background = "var(--surface)")}
               onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
             >
               <MapPin size={12} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {r.label}
-              </span>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
             </button>
           ))}
         </div>

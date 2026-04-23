@@ -1,108 +1,108 @@
 "use client";
 
-// Importaciones de React y hooks necesarios para el manejo de estado y efectos.
 import { useState, useEffect } from "react";
-// Íconos de la librería Lucide que se usan en la interfaz visual.
 import { Car, Clock, Film, Search, ChevronRight, RotateCcw, Layers } from "lucide-react";
-// Componentes propios de la aplicación.
 import LocationInput from "@/components/LocationInput";
 import ComboResult from "@/components/ComboResult";
-// Tipos compartidos de la aplicación.
 import { Genre, GeocodingResult, Movie } from "@/types";
 
-// Define los dos modos posibles para ingresar la duración del viaje.
 type TripMode = "route" | "manual";
 
 export default function Home() {
-  // Estados del modo de ingreso y los textos de los campos de origen y destino.
   const [mode, setMode] = useState<TripMode>("route");
   const [originText, setOriginText] = useState("");
   const [destText, setDestText] = useState("");
-  // Resultados de geocodificación seleccionados por el usuario.
   const [origin, setOrigin] = useState<GeocodingResult | null>(null);
   const [destination, setDestination] = useState<GeocodingResult | null>(null);
-  // Minutos ingresados manualmente y minutos calculados de la ruta.
   const [manualMinutes, setManualMinutes] = useState("");
   const [tripMinutes, setTripMinutes] = useState<number | null>(null);
-  // Información de la ruta calculada (distancia y duración).
   const [routeInfo, setRouteInfo] = useState<{ distanceKm: number; durationMinutes: number } | null>(null);
-  // Estados de carga y error para el cálculo de ruta.
-  const [routeLoading, setRouteLoading] = useState(false);
-  const [routeError, setRouteError] = useState("");
-  // Lista de géneros disponibles y los géneros seleccionados por el usuario.
   const [genres, setGenres] = useState<Genre[]>([]);
   const [selectedGenres, setSelectedGenres] = useState<number[]>([]);
-  // Número máximo de películas a combinar.
   const [maxMovies, setMaxMovies] = useState(2);
-  // Combinaciones de películas agrupadas por cantidad, pestaña activa y estados de búsqueda.
   const [bySize, setBySize] = useState<Record<number, Movie[][]>>({});
   const [activeTab, setActiveTab] = useState(1);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [searchError, setSearchError] = useState("");
 
-  // Al montar el componente, carga la lista de géneros disponibles desde la API de TMDB.
+  // Carga géneros al montar usando el endpoint unificado.
   useEffect(() => {
-    fetch("/api/genres").then((r) => r.json()).then((d) => setGenres(d.genres || []));
+    fetch("/api/recommendations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "genres" }),
+    })
+      .then((r) => r.json())
+      .then((d) => setGenres(d.genres || []));
   }, []);
 
-  // Llama a la API interna para calcular la duración de la ruta entre el origen y destino seleccionados.
-  async function calculateRoute() {
-    if (!origin || !destination) return;
-    setRouteLoading(true); setRouteError(""); setTripMinutes(null); setRouteInfo(null);
+  // Busca películas (y calcula la ruta si corresponde) en un único llamado al endpoint.
+  async function searchMovies() {
+    const minutes = mode === "manual" ? parseInt(manualMinutes) : null;
+
+    if (mode === "manual" && (!minutes || minutes < 30)) return;
+    if (mode === "route" && (!origin || !destination)) return;
+
+    setSearching(true);
+    setSearched(false);
+    setBySize({});
+    setSearchError("");
+    setRouteInfo(null);
+    setTripMinutes(null);
+
     try {
-      const res = await fetch("/api/route-duration", {
+      const body: Record<string, unknown> = {
+        action: "search",
+        genres: selectedGenres,
+        maxMovies,
+      };
+
+      if (mode === "route") {
+        body.originCoords = origin!.coordinates;
+        body.destinationCoords = destination!.coordinates;
+      } else {
+        body.manualMinutes = minutes;
+      }
+
+      const res = await fetch("/api/recommendations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ originCoords: origin.coordinates, destinationCoords: destination.coordinates }),
+        body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setTripMinutes(data.durationMinutes);
-      setRouteInfo({ distanceKm: data.distanceKm, durationMinutes: data.durationMinutes });
-    } catch { setRouteError("Error al calcular la ruta. Verificá las direcciones."); }
-    finally { setRouteLoading(false); }
-  }
 
-  // Busca combinaciones de películas que se ajusten a la duración del viaje,
-  // aplicando los filtros de género y cantidad máxima de películas elegidos.
-  async function searchMovies() {
-    const minutes = mode === "manual" ? parseInt(manualMinutes) : tripMinutes;
-    if (!minutes || minutes < 30) return;
-    setSearching(true); setSearched(false); setBySize({}); setSearchError("");
-    try {
-      const genreParam = selectedGenres.length > 0 ? selectedGenres.join(",") : "";
-      const res = await fetch(`/api/movies?minutes=${minutes}&genres=${genreParam}&maxMovies=${maxMovies}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
+
+      setTripMinutes(data.durationMinutes);
+      if (data.distanceKm !== undefined) {
+        setRouteInfo({ distanceKm: data.distanceKm, durationMinutes: data.durationMinutes });
+      }
       setBySize(data.bySize || {});
       setActiveTab(1);
       setSearched(true);
-      if (mode === "manual") setTripMinutes(minutes);
-    } catch { setSearchError("Error al buscar películas. Intentá de nuevo."); }
-    finally { setSearching(false); }
+    } catch {
+      setSearchError("Error al buscar películas. Intentá de nuevo.");
+    } finally {
+      setSearching(false);
+    }
   }
 
-  // Reinicia todos los campos y resultados de la búsqueda para comenzar de nuevo.
   function reset() {
     setOriginText(""); setDestText(""); setOrigin(null); setDestination(null);
     setManualMinutes(""); setTripMinutes(null); setRouteInfo(null);
     setBySize({}); setSearched(false); setSelectedGenres([]); setMaxMovies(2);
-    setRouteError(""); setSearchError(""); setActiveTab(1);
+    setSearchError(""); setActiveTab(1);
   }
 
-  // Duración resuelta según el modo: minutos ingresados manualmente o calculados por la ruta.
   const resolvedMinutes = mode === "manual" ? parseInt(manualMinutes) || null : tripMinutes;
-  // La búsqueda solo está habilitada si se tiene al menos 30 minutos de duración.
-  const canSearch = !!(resolvedMinutes && resolvedMinutes >= 30);
+  const canSearch =
+    mode === "manual"
+      ? !!(resolvedMinutes && resolvedMinutes >= 30)
+      : !!(origin && destination);
 
-  // Etiquetas para las pestañas de resultados según la cantidad de películas.
   const tabLabels: Record<number, string> = {
-    1: "1 película",
-    2: "2 películas",
-    3: "3 películas",
-    4: "4 películas",
-    5: "5 películas",
+    1: "1 película", 2: "2 películas", 3: "3 películas", 4: "4 películas", 5: "5 películas",
   };
 
   return (
@@ -140,10 +140,7 @@ export default function Home() {
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <LocationInput placeholder="Origen (ej: Buenos Aires)" value={originText} onChange={setOriginText} onSelect={(r) => { setOrigin(r); setOriginText(r.label); }} />
               <LocationInput placeholder="Destino (ej: Mar del Plata)" value={destText} onChange={setDestText} onSelect={(r) => { setDestination(r); setDestText(r.label); }} />
-              <button onClick={calculateRoute} disabled={!origin || !destination || routeLoading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 24px", borderRadius: "var(--radius)", background: origin && destination ? "var(--accent)" : "var(--surface2)", border: "none", color: origin && destination ? "var(--bg)" : "var(--text-muted)", fontFamily: "var(--font-body)", fontSize: "0.95rem", fontWeight: 500, cursor: origin && destination ? "pointer" : "not-allowed", transition: "all 0.2s", alignSelf: "flex-start" }}>
-                <Car size={16} />{routeLoading ? "Calculando..." : "Calcular duración"}{!routeLoading && <ChevronRight size={14} />}
-              </button>
-              {routeError && <p style={{ color: "#ef4444", fontSize: "0.85rem" }}>{routeError}</p>}
+              {/* En modo ruta, la info se muestra luego de buscar películas */}
               {routeInfo && (
                 <div style={{ display: "flex", gap: 20, padding: "14px 18px", background: "var(--surface)", border: "1px solid var(--accent)", borderRadius: "var(--radius)" }}>
                   <div><span style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "block" }}>DISTANCIA</span><span style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", color: "var(--accent)" }}>{routeInfo.distanceKm} km</span></div>
@@ -171,7 +168,6 @@ export default function Home() {
             <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", letterSpacing: "0.05em", color: canSearch ? "var(--text)" : "var(--text-muted)", transition: "color 0.3s" }}>PREFERENCIAS</h2>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {/* Max movies — hasta 5 */}
             <div>
               <label style={{ fontSize: "0.78rem", color: "var(--text-muted)", display: "block", marginBottom: 8, letterSpacing: "0.08em" }}>MÁXIMO DE PELÍCULAS</label>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -182,7 +178,6 @@ export default function Home() {
                 ))}
               </div>
             </div>
-            {/* Géneros — selección OR */}
             <div>
               <label style={{ fontSize: "0.78rem", color: "var(--text-muted)", display: "block", marginBottom: 4, letterSpacing: "0.08em" }}>GÉNEROS (opcional)</label>
               <p style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginBottom: 8, opacity: 0.7 }}>
@@ -192,11 +187,7 @@ export default function Home() {
                 {genres.map((g) => {
                   const active = selectedGenres.includes(g.id);
                   return (
-                    <button
-                      key={g.id}
-                      onClick={() => setSelectedGenres((prev) => active ? prev.filter((id) => id !== g.id) : [...prev, g.id])}
-                      style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${active ? "var(--accent2)" : "var(--border)"}`, background: active ? "rgba(255,107,74,0.12)" : "var(--surface)", color: active ? "var(--accent2)" : "var(--text-muted)", fontFamily: "var(--font-body)", fontSize: "0.82rem", cursor: "pointer", transition: "all 0.2s" }}
-                    >
+                    <button key={g.id} onClick={() => setSelectedGenres((prev) => active ? prev.filter((id) => id !== g.id) : [...prev, g.id])} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${active ? "var(--accent2)" : "var(--border)"}`, background: active ? "rgba(255,107,74,0.12)" : "var(--surface)", color: active ? "var(--accent2)" : "var(--text-muted)", fontFamily: "var(--font-body)", fontSize: "0.82rem", cursor: "pointer", transition: "all 0.2s" }}>
                       {g.name}
                     </button>
                   );
@@ -228,46 +219,18 @@ export default function Home() {
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--accent2)", color: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-display)", fontSize: "1rem" }}>3</div>
                 <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", letterSpacing: "0.05em" }}>RESULTADOS</h2>
-                <span style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>para {resolvedMinutes} min</span>
+                <span style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>para {resolvedMinutes ?? tripMinutes} min</span>
               </div>
             </div>
 
-            {/* Pestañas por cantidad de películas */}
             <div style={{ display: "flex", gap: 0, marginBottom: 20, borderBottom: "1px solid var(--border)", overflowX: "auto" }}>
               {Array.from({ length: maxMovies }, (_, i) => i + 1).map((n) => {
                 const count = bySize[n]?.length || 0;
                 const isActive = activeTab === n;
                 return (
-                  <button
-                    key={n}
-                    onClick={() => setActiveTab(n)}
-                    style={{
-                      padding: "10px 16px",
-                      border: "none",
-                      borderBottom: isActive ? "2px solid var(--accent)" : "2px solid transparent",
-                      background: "transparent",
-                      color: isActive ? "var(--accent)" : "var(--text-muted)",
-                      fontFamily: "var(--font-body)",
-                      fontSize: "0.85rem",
-                      fontWeight: isActive ? 500 : 400,
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                      marginBottom: -1,
-                      whiteSpace: "nowrap",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
+                  <button key={n} onClick={() => setActiveTab(n)} style={{ padding: "10px 16px", border: "none", borderBottom: isActive ? "2px solid var(--accent)" : "2px solid transparent", background: "transparent", color: isActive ? "var(--accent)" : "var(--text-muted)", fontFamily: "var(--font-body)", fontSize: "0.85rem", fontWeight: isActive ? 500 : 400, cursor: "pointer", transition: "all 0.2s", marginBottom: -1, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>
                     {tabLabels[n]}
-                    <span style={{
-                      fontSize: "0.7rem",
-                      background: isActive ? "var(--accent)" : "var(--surface2)",
-                      color: isActive ? "var(--bg)" : "var(--text-muted)",
-                      borderRadius: 10,
-                      padding: "1px 7px",
-                      transition: "all 0.2s",
-                    }}>
+                    <span style={{ fontSize: "0.7rem", background: isActive ? "var(--accent)" : "var(--surface2)", color: isActive ? "var(--bg)" : "var(--text-muted)", borderRadius: 10, padding: "1px 7px", transition: "all 0.2s" }}>
                       {count}
                     </span>
                   </button>
@@ -275,7 +238,6 @@ export default function Home() {
               })}
             </div>
 
-            {/* Contenido de la pestaña activa */}
             {(bySize[activeTab] || []).length === 0 ? (
               <div style={{ padding: "40px 24px", textAlign: "center", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius)" }}>
                 <p style={{ color: "var(--text-muted)", fontSize: "0.95rem" }}>
@@ -284,7 +246,7 @@ export default function Home() {
               </div>
             ) : (
               (bySize[activeTab] || []).map((combo, i) => (
-                <ComboResult key={i} movies={combo} tripMinutes={resolvedMinutes!} comboIndex={i} />
+                <ComboResult key={i} movies={combo} tripMinutes={(resolvedMinutes ?? tripMinutes)!} comboIndex={i} />
               ))
             )}
           </section>
