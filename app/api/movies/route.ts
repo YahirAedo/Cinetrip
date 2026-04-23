@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TMDBMovieRaw, TMDBMovieDetail, Movie } from "@/types";
 
+// Obtiene el detalle completo de una lista de películas por ID desde TMDB.
+// Descarta las películas con runtime inválido o menor a 30 minutos.
 async function fetchMovieDetails(ids: number[], apiKey: string): Promise<Movie[]> {
   const details = await Promise.all(
     ids.map(async (id) => {
@@ -25,10 +27,14 @@ async function fetchMovieDetails(ids: number[], apiKey: string): Promise<Movie[]
   return details.filter(Boolean) as Movie[];
 }
 
+// Calcula el puntaje promedio de un conjunto de películas.
 function avgRating(movies: Movie[]): number {
   return movies.reduce((sum, m) => sum + m.vote_average, 0) / movies.length;
 }
 
+// Algoritmo recursivo que encuentra todas las combinaciones de "size" películas
+// cuya duración total no supere el presupuesto de tiempo indicado.
+// Se detiene anticipadamente cuando ya se acumularon 60 resultados.
 function findCombosOfSize(
   movies: Movie[],
   budget: number,
@@ -47,17 +53,20 @@ function findCombosOfSize(
     current.push(movies[i]);
     findCombosOfSize(movies, budget, size, i + 1, current, results);
     current.pop();
-    // Early exit once we have plenty of results
+    // Salida anticipada una vez que se tienen suficientes resultados.
     if (results.length >= 60) return;
   }
 }
 
+// Genera combinaciones de películas agrupadas por cantidad (1, 2, 3... hasta maxMovies).
+// Trabaja solo con las 25 películas mejor valoradas para mantener el espacio de búsqueda manejable.
+// Retorna hasta 10 combinaciones por grupo, ordenadas de mayor a menor rating promedio.
 function findCombinationsBySize(
   movies: Movie[],
   budget: number,
   maxMovies: number
 ): Record<number, Movie[][]> {
-  // Use top-rated movies as candidates to keep search space manageable
+  // Usar las películas mejor valoradas como candidatos para mantener el espacio de búsqueda manejable.
   const candidates = [...movies]
     .sort((a, b) => b.vote_average - a.vote_average)
     .slice(0, 25);
@@ -68,7 +77,7 @@ function findCombinationsBySize(
     const combos: Movie[][] = [];
     findCombosOfSize(candidates, budget, size, 0, [], combos);
 
-    // Sort each group by average rating (desc)
+    // Ordenar cada grupo por rating promedio de mayor a menor.
     combos.sort((a, b) => avgRating(b) - avgRating(a));
 
     bySize[size] = combos.slice(0, 10);
@@ -77,6 +86,9 @@ function findCombinationsBySize(
   return bySize;
 }
 
+// Endpoint GET principal que recibe la duración en minutos, géneros y cantidad máxima de películas.
+// Consulta TMDB, filtra por los parámetros recibidos y retorna combinaciones de películas
+// agrupadas por cantidad que se ajusten a la duración del viaje.
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const minutes = parseInt(searchParams.get("minutes") || "0");
@@ -94,9 +106,10 @@ export async function GET(request: NextRequest) {
 
   try {
     const pages = [1, 2, 3];
-    // Use pipe-separated genre IDs so TMDB treats them as OR (comma = AND, pipe = OR)
+    // Se usan IDs separados por pipe para que TMDB los trate como OR (coma = AND, pipe = OR).
     const genreParam = genreIds ? `&with_genres=${genreIds.replace(/,/g, "|")}` : "";
 
+    // Se descargan las primeras 3 páginas de resultados de TMDB en paralelo.
     const fetchedPages = await Promise.all(
       pages.map((page) =>
         fetch(
@@ -105,11 +118,14 @@ export async function GET(request: NextRequest) {
       )
     );
 
+    // Se combinan todas las películas y se eliminan duplicados por ID, tomando los primeros 40.
     const rawMovies: TMDBMovieRaw[] = fetchedPages.flatMap((p) => p.results || []);
     const uniqueIds = [...new Set(rawMovies.map((m) => m.id))].slice(0, 40);
 
+    // Se obtiene el detalle completo de cada película para obtener su runtime.
     const movies = await fetchMovieDetails(uniqueIds, apiKey);
 
+    // Se generan las combinaciones posibles y se retornan al cliente.
     const bySize = findCombinationsBySize(movies, minutes, maxMovies);
 
     return NextResponse.json({ bySize, totalFetched: movies.length });

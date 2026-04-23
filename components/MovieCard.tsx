@@ -1,13 +1,19 @@
 "use client";
+// Importaciones del tipo Movie y los íconos utilizados en la tarjeta.
 import { Movie } from "@/types";
 import { Star, Clock } from "lucide-react";
 
+// Props del componente: la película a mostrar y su índice en la lista (para animar con delay).
 interface Props {
   movie: Movie;
   index: number;
 }
 
+// Tarjeta visual de una película individual.
+// Muestra el póster (o un emoji de cine si no hay imagen), el título, la calificación,
+// la duración, el año de estreno, los géneros y una sinopsis resumida.
 export default function MovieCard({ movie, index }: Props) {
+  // Construye la URL del póster usando la CDN de TMDB, o null si no existe imagen.
   const posterUrl = movie.poster_path
     ? `https://image.tmdb.org/t/p/w300${movie.poster_path}`
     : null;
