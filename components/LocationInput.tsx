@@ -18,6 +18,7 @@ export default function LocationInput({ placeholder, onSelect, value, onChange }
   const selectingRef = useRef(false);
 
   useEffect(() => {
+    if (selectingRef.current) return;
     if (value.length < 3) { setResults([]); setOpen(false); return; }
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(async () => {
@@ -26,7 +27,7 @@ export default function LocationInput({ placeholder, onSelect, value, onChange }
         const res = await fetch(`/api/geocode?text=${encodeURIComponent(value)}`);
         const data = await res.json();
         setResults(data.results || []);
-        setOpen(true);
+        if (!selectingRef.current) setOpen(true);
       } finally {
         setLoading(false);
       }
@@ -89,16 +90,19 @@ export default function LocationInput({ placeholder, onSelect, value, onChange }
           {results.map((r, i) => (
             <button
               key={i}
-              onPointerDown={(e) => {
+              onMouseDown={(e) => {
                 e.preventDefault();
                 selectingRef.current = true;
               }}
               onClick={() => {
                 onSelect(r);
                 onChange(r.label);
+                if (debounce.current) clearTimeout(debounce.current);
                 setOpen(false);
                 setResults([]);
-                selectingRef.current = false;
+                setTimeout(() => {
+                  selectingRef.current = false;
+                }, 0);
               }}
               style={{
                 display: "flex", alignItems: "center", gap: 10,

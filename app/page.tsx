@@ -187,9 +187,16 @@ export default function Home() {
 
         {/* Search */}
         <div style={{ marginBottom: 32 }}>
-          <button onClick={searchMovies} disabled={!canSearch || searching} style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 28px", borderRadius: "var(--radius)", background: canSearch ? "var(--accent)" : "var(--surface2)", border: "none", color: canSearch ? "var(--bg)" : "var(--text-muted)", fontFamily: "var(--font-display)", fontSize: "1.1rem", letterSpacing: "0.08em", cursor: canSearch ? "pointer" : "not-allowed", transition: "all 0.2s", opacity: searching ? 0.7 : 1 }}>
-            <Search size={18} />{searching ? "BUSCANDO..." : "BUSCAR PELÍCULAS"}
-          </button>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <button onClick={searchMovies} disabled={!canSearch || searching} style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 28px", borderRadius: "var(--radius)", background: canSearch ? "var(--accent)" : "var(--surface2)", border: "none", color: canSearch ? "var(--bg)" : "var(--text-muted)", fontFamily: "var(--font-display)", fontSize: "1.1rem", letterSpacing: "0.08em", cursor: canSearch ? "pointer" : "not-allowed", transition: "all 0.2s", opacity: searching ? 0.7 : 1 }}>
+              <Search size={18} />{searching ? "BUSCANDO..." : "BUSCAR PELÍCULAS"}
+            </button>
+            {searched && (
+              <button onClick={reset} style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 28px", borderRadius: "var(--radius)", background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-muted)", fontFamily: "var(--font-display)", fontSize: "1.1rem", letterSpacing: "0.08em", cursor: "pointer", transition: "all 0.2s" }}>
+                <RotateCcw size={18} />NUEVA BÚSQUEDA
+              </button>
+            )}
+          </div>
           {searchError && <p style={{ color: "#ef4444", fontSize: "0.85rem", marginTop: 8 }}>{searchError}</p>}
         </div>
 
@@ -202,9 +209,6 @@ export default function Home() {
                 <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", letterSpacing: "0.05em" }}>RESULTADOS</h2>
                 <span style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>para {resolvedMinutes} min</span>
               </div>
-              <button onClick={reset} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text-muted)", fontFamily: "var(--font-body)", fontSize: "0.82rem", padding: "6px 12px", cursor: "pointer" }}>
-                <RotateCcw size={13} />Nueva búsqueda
-              </button>
             </div>
 
             {/* Pestañas por cantidad de películas */}
