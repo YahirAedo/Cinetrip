@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const pages = [1, 2, 3];
+    const pages = [1, 2, 3, 4, 5];
     // Se usan IDs separados por pipe para que TMDB los trate como OR (coma = AND, pipe = OR).
     const genreParam = genreIds ? `&with_genres=${genreIds.replace(/,/g, "|")}` : "";
 
@@ -154,7 +154,7 @@ export async function GET(request: NextRequest) {
 
     // Se combinan todas las películas y se eliminan duplicados por ID, tomando los primeros 40.
     const rawMovies: TMDBMovieRaw[] = fetchedPages.flatMap((p) => p.results || []);
-    const uniqueIds = [...new Set(rawMovies.map((m) => m.id))].slice(0, 60);
+    const uniqueIds = [...new Set(rawMovies.map((m) => m.id))].slice(0, 100);
 
     // Se obtiene el detalle completo de cada película para obtener su runtime.
     const movies = await fetchMovieDetails(uniqueIds, apiKey);
