@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GeocodingResult } from "@/types";
 
+// Endpoint GET que convierte un texto de búsqueda en coordenadas geográficas usando OpenRouteService.
+// Recibe el parámetro "text" en la query string y retorna hasta 5 sugerencias de lugares.
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const text = searchParams.get("text");
 
+  // Si el texto es demasiado corto, se retorna una lista vacía sin consultar la API externa.
   if (!text || text.length < 3) {
     return NextResponse.json({ results: [] });
   }
@@ -23,6 +26,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await res.json();
+    // Se mapean las features GeoJSON de la respuesta al formato simplificado GeocodingResult.
     const results: GeocodingResult[] = (data.features || []).map(
       (f: { properties: { label: string }; geometry: { coordinates: [number, number] } }) => ({
         label: f.properties.label,

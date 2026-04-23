@@ -1,37 +1,52 @@
 "use client";
 
+// Importaciones de React y hooks necesarios para el manejo de estado y efectos.
 import { useState, useEffect } from "react";
+// Íconos de la librería Lucide que se usan en la interfaz visual.
 import { Car, Clock, Film, Search, ChevronRight, RotateCcw, Layers } from "lucide-react";
+// Componentes propios de la aplicación.
 import LocationInput from "@/components/LocationInput";
 import ComboResult from "@/components/ComboResult";
+// Tipos compartidos de la aplicación.
 import { Genre, GeocodingResult, Movie } from "@/types";
 
+// Define los dos modos posibles para ingresar la duración del viaje.
 type TripMode = "route" | "manual";
 
 export default function Home() {
+  // Estados del modo de ingreso y los textos de los campos de origen y destino.
   const [mode, setMode] = useState<TripMode>("route");
   const [originText, setOriginText] = useState("");
   const [destText, setDestText] = useState("");
+  // Resultados de geocodificación seleccionados por el usuario.
   const [origin, setOrigin] = useState<GeocodingResult | null>(null);
   const [destination, setDestination] = useState<GeocodingResult | null>(null);
+  // Minutos ingresados manualmente y minutos calculados de la ruta.
   const [manualMinutes, setManualMinutes] = useState("");
   const [tripMinutes, setTripMinutes] = useState<number | null>(null);
+  // Información de la ruta calculada (distancia y duración).
   const [routeInfo, setRouteInfo] = useState<{ distanceKm: number; durationMinutes: number } | null>(null);
+  // Estados de carga y error para el cálculo de ruta.
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState("");
+  // Lista de géneros disponibles y los géneros seleccionados por el usuario.
   const [genres, setGenres] = useState<Genre[]>([]);
   const [selectedGenres, setSelectedGenres] = useState<number[]>([]);
+  // Número máximo de películas a combinar.
   const [maxMovies, setMaxMovies] = useState(2);
+  // Combinaciones de películas agrupadas por cantidad, pestaña activa y estados de búsqueda.
   const [bySize, setBySize] = useState<Record<number, Movie[][]>>({});
   const [activeTab, setActiveTab] = useState(1);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [searchError, setSearchError] = useState("");
 
+  // Al montar el componente, carga la lista de géneros disponibles desde la API de TMDB.
   useEffect(() => {
     fetch("/api/genres").then((r) => r.json()).then((d) => setGenres(d.genres || []));
   }, []);
 
+  // Llama a la API interna para calcular la duración de la ruta entre el origen y destino seleccionados.
   async function calculateRoute() {
     if (!origin || !destination) return;
     setRouteLoading(true); setRouteError(""); setTripMinutes(null); setRouteInfo(null);
@@ -49,6 +64,8 @@ export default function Home() {
     finally { setRouteLoading(false); }
   }
 
+  // Busca combinaciones de películas que se ajusten a la duración del viaje,
+  // aplicando los filtros de género y cantidad máxima de películas elegidos.
   async function searchMovies() {
     const minutes = mode === "manual" ? parseInt(manualMinutes) : tripMinutes;
     if (!minutes || minutes < 30) return;
@@ -66,6 +83,7 @@ export default function Home() {
     finally { setSearching(false); }
   }
 
+  // Reinicia todos los campos y resultados de la búsqueda para comenzar de nuevo.
   function reset() {
     setOriginText(""); setDestText(""); setOrigin(null); setDestination(null);
     setManualMinutes(""); setTripMinutes(null); setRouteInfo(null);
@@ -73,9 +91,12 @@ export default function Home() {
     setRouteError(""); setSearchError(""); setActiveTab(1);
   }
 
+  // Duración resuelta según el modo: minutos ingresados manualmente o calculados por la ruta.
   const resolvedMinutes = mode === "manual" ? parseInt(manualMinutes) || null : tripMinutes;
+  // La búsqueda solo está habilitada si se tiene al menos 30 minutos de duración.
   const canSearch = !!(resolvedMinutes && resolvedMinutes >= 30);
 
+  // Etiquetas para las pestañas de resultados según la cantidad de películas.
   const tabLabels: Record<number, string> = {
     1: "1 película",
     2: "2 películas",
