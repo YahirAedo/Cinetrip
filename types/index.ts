@@ -1,4 +1,5 @@
-// Types for route data from OpenRouteService
+// Resultado de una ruta calculada por OpenRouteService.
+// Incluye duración en segundos y minutos, distancia en km y un resumen legible.
 export interface RouteResult {
   durationSeconds: number;
   durationMinutes: number;
@@ -6,7 +7,8 @@ export interface RouteResult {
   summary: string;
 }
 
-// Types for TMDB movie
+// Representa una película con todos sus datos relevantes.
+// El campo runtime está en minutos y genres es opcional (viene del detalle de TMDB).
 export interface Movie {
   id: number;
   title: string;
@@ -19,15 +21,19 @@ export interface Movie {
   genres?: Genre[];
 }
 
+// Género cinematográfico tal como lo devuelve TMDB.
 export interface Genre {
   id: number;
   name: string;
 }
 
-// Trip input modes
+// Modo de ingreso de la duración del viaje:
+// "route" calcula la ruta automáticamente, "manual" permite ingresar los minutos a mano.
 export type TripMode = "route" | "manual";
 
-// App state for recommendations
+// Estado de una recomendación generada por la app.
+// Contiene las películas sugeridas, el tiempo total de reproducción,
+// los minutos del viaje y cuántos minutos sobran.
 export interface RecommendationResult {
   movies: Movie[];
   totalRuntime: number;
@@ -35,13 +41,15 @@ export interface RecommendationResult {
   leftoverMinutes: number;
 }
 
-// TMDB API response shapes
+// Forma de la respuesta de la API de listado de películas de TMDB.
 export interface TMDBMovieListResponse {
   results: TMDBMovieRaw[];
   total_pages: number;
   total_results: number;
 }
 
+// Película tal como viene en los resultados de búsqueda/descubrimiento de TMDB.
+// No incluye runtime; eso se obtiene del endpoint de detalle.
 export interface TMDBMovieRaw {
   id: number;
   title: string;
@@ -52,6 +60,8 @@ export interface TMDBMovieRaw {
   genre_ids: number[];
 }
 
+// Detalle completo de una película obtenido del endpoint de TMDB para un ID específico.
+// Incluye runtime y la lista de géneros con nombre.
 export interface TMDBMovieDetail {
   id: number;
   title: string;
@@ -63,7 +73,8 @@ export interface TMDBMovieDetail {
   genres: Genre[];
 }
 
-// ORS Geocoding
+// Resultado de geocodificación de OpenRouteService.
+// Contiene el nombre legible del lugar y sus coordenadas [longitud, latitud].
 export interface GeocodingResult {
   label: string;
   coordinates: [number, number]; // [lng, lat]

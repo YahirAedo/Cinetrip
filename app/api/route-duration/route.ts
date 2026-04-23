@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { RouteResult } from "@/types";
 
+// Endpoint POST que calcula la duración y distancia de una ruta en auto
+// usando la API de OpenRouteService. Recibe las coordenadas de origen y destino
+// en el cuerpo de la solicitud y retorna los datos de la ruta.
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const { originCoords, destinationCoords } = body;
 
+  // Validación: ambas coordenadas son obligatorias para calcular la ruta.
   if (!originCoords || !destinationCoords) {
     return NextResponse.json({ error: "Missing coordinates" }, { status: 400 });
   }
@@ -17,6 +21,7 @@ export async function POST(request: NextRequest) {
   const url = `https://api.openrouteservice.org/v2/directions/driving-car`;
 
   try {
+    // Se envía la solicitud a ORS con las coordenadas en el formato que espera la API.
     const res = await fetch(url, {
       method: "POST",
       headers: {
@@ -35,12 +40,14 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await res.json();
+    // Se extrae el resumen del primer tramo de la ruta calculada.
     const segment = data.routes?.[0]?.summary;
 
     if (!segment) {
       return NextResponse.json({ error: "No route found" }, { status: 404 });
     }
 
+    // Se convierten los valores de la API (segundos y metros) a minutos y kilómetros.
     const durationSeconds: number = segment.duration;
     const durationMinutes = Math.round(durationSeconds / 60);
     const distanceKm = Math.round(segment.distance / 100) / 10;

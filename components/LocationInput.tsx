@@ -1,8 +1,11 @@
 "use client";
+// Importaciones de React, hooks y componentes de interfaz necesarios.
 import { useState, useEffect, useRef } from "react";
 import { MapPin, Loader2 } from "lucide-react";
 import { GeocodingResult } from "@/types";
 
+// Props del componente: texto placeholder, callback al seleccionar una ubicación,
+// valor actual del campo y callback para actualizar ese valor.
 interface Props {
   placeholder: string;
   onSelect: (result: GeocodingResult) => void;
@@ -10,13 +13,20 @@ interface Props {
   onChange: (v: string) => void;
 }
 
+// Componente de entrada de ubicación con autocompletado.
+// Consulta la API de geocodificación mientras el usuario escribe (con debounce de 350ms)
+// y muestra un listado desplegable de sugerencias para elegir.
 export default function LocationInput({ placeholder, onSelect, value, onChange }: Props) {
+  // Lista de resultados de geocodificación y estados de carga/visibilidad del desplegable.
   const [results, setResults] = useState<GeocodingResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  // Ref para el temporizador de debounce, evitando llamadas innecesarias a la API.
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ref para saber si el usuario está seleccionando un resultado (evita cerrar el desplegable prematuramente).
   const selectingRef = useRef(false);
 
+  // Efecto que dispara la búsqueda de geocodificación cada vez que cambia el valor del campo.
   useEffect(() => {
     if (selectingRef.current) return;
     if (value.length < 3) { setResults([]); setOpen(false); return; }
@@ -36,6 +46,7 @@ export default function LocationInput({ placeholder, onSelect, value, onChange }
 
   return (
     <div style={{ position: "relative", width: "100%" }}>
+      {/* Campo de texto con ícono de pin a la izquierda e indicador de carga a la derecha */}
       <div style={{ position: "relative" }}>
         <MapPin
           size={16}
@@ -79,6 +90,8 @@ export default function LocationInput({ placeholder, onSelect, value, onChange }
       </div>
 
       {open && results.length > 0 && (
+        // Desplegable con las sugerencias de ubicaciones encontradas.
+        // Cada opción, al hacer clic, actualiza el campo y cierra el listado.
         <div
           style={{
             position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0,
