@@ -104,18 +104,17 @@ function findCombinationsBySize(
   const bySize: Record<number, Movie[][]> = {};
 
   for (let size = 1; size <= maxMovies; size++) {
-    const combos: Movie[][] = [];
-    findCombosOfSize(candidates, budget, size, 0, [], combos);
+    // Genera 50 combinaciones aleatorias en lugar de todas las posibles
+    const combos = getRandomCombinations(candidates, size, 50);
 
     // Filtra por duración total <= budget
     const validCombos = combos.filter(combo =>
       combo.reduce((sum, m) => sum + m.runtime, 0) <= budget
     );
-    // Ordenar cada grupo por rating promedio de mayor a menor.
-    combos.sort((a, b) => avgRating(b) - avgRating(a));
 
-    const topCombos = combos.slice(0, 20);
-    bySize[size] = shuffle(topCombos).slice(0, 10);
+    // Ordena por rating promedio descendente y toma top 10
+    validCombos.sort((a, b) => avgRating(b) - avgRating(a));
+    bySize[size] = validCombos.slice(0, 10);
   }
 
   return bySize;
