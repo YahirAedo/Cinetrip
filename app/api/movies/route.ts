@@ -52,26 +52,60 @@ function findCombosOfSize(
   }
 }
 
+function getRandomCombinations<T>(
+  items: T[],
+  size: number,
+  count: number
+): T[][] {
+  const combinations: T[][] = [];
+  const used = new Set<string>(); // Para evitar duplicados
+
+  while (combinations.length < count) {
+    const combo = shuffle([...items]).slice(0, size);
+    const key = combo.map(item => (item as any).id).sort().join('-'); // Usa ID único para evitar duplicados
+    if (!used.has(key)) {
+      used.add(key);
+      combinations.push(combo);
+    }
+    if (used.size >= Math.min(count * 2, items.length ** size)) break; // Evita bucles infinitos
+  }
+
+  return combinations;
+}
+
+function shuffle<T>(array: T[]): T[] {
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 function findCombinationsBySize(
   movies: Movie[],
   budget: number,
   maxMovies: number
 ): Record<number, Movie[][]> {
-  // Use top-rated movies as candidates to keep search space manageable
-  const candidates = [...movies]
+  const candidates = shuffle([...movies]
     .sort((a, b) => b.vote_average - a.vote_average)
-    .slice(0, 25);
+    .slice(0, 50)
+  );
 
   const bySize: Record<number, Movie[][]> = {};
 
   for (let size = 1; size <= maxMovies; size++) {
-    const combos: Movie[][] = [];
-    findCombosOfSize(candidates, budget, size, 0, [], combos);
+    // Genera 50 combinaciones aleatorias en lugar de todas las posibles
+    const combos = getRandomCombinations(candidates, size, 50);
 
-    // Sort each group by average rating (desc)
-    combos.sort((a, b) => avgRating(b) - avgRating(a));
+    // Filtra por duración total <= budget
+    const validCombos = combos.filter(combo =>
+      combo.reduce((sum, m) => sum + m.runtime, 0) <= budget
+    );
 
-    bySize[size] = combos.slice(0, 10);
+    // Ordena por rating promedio descendente y toma top 10
+    validCombos.sort((a, b) => avgRating(b) - avgRating(a));
+    bySize[size] = validCombos.slice(0, 10);
   }
 
   return bySize;
@@ -106,7 +140,7 @@ export async function GET(request: NextRequest) {
     );
 
     const rawMovies: TMDBMovieRaw[] = fetchedPages.flatMap((p) => p.results || []);
-    const uniqueIds = [...new Set(rawMovies.map((m) => m.id))].slice(0, 40);
+    const uniqueIds = [...new Set(rawMovies.map((m) => m.id))].slice(0, 60);
 
     const movies = await fetchMovieDetails(uniqueIds, apiKey);
 
