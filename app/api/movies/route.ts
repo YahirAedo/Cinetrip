@@ -58,29 +58,63 @@ function findCombosOfSize(
   }
 }
 
-// Genera combinaciones de películas agrupadas por cantidad (1, 2, 3... hasta maxMovies).
-// Trabaja solo con las 25 películas mejor valoradas para mantener el espacio de búsqueda manejable.
-// Retorna hasta 10 combinaciones por grupo, ordenadas de mayor a menor rating promedio.
+// Genera combinaciones aleatorias para cada tamaño, evitando duplicados y limitando la cantidad para rendimiento
+function getRandomCombinations<T>(
+  items: T[],
+  size: number,
+  count: number
+): T[][] {
+  const combinations: T[][] = [];
+  const used = new Set<string>(); // Para evitar duplicados
+
+  while (combinations.length < count) {
+    const combo = shuffle([...items]).slice(0, size);
+    const key = combo.map(item => (item as any).id).sort().join('-'); // Usa ID único para evitar duplicados
+    if (!used.has(key)) {
+      used.add(key);
+      combinations.push(combo);
+    }
+    if (used.size >= Math.min(count * 2, items.length ** size)) break; // Evita bucles infinitos
+  }
+
+  return combinations;
+}
+
+// Algoritmo de mezcla de Fisher-Yates para aleatorizar el orden de los elementos
+function shuffle<T>(array: T[]): T[] {
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+// Encuentra combinaciones de películas por tamaño, ordenadas por rating promedio y limitadas para rendimiento
 function findCombinationsBySize(
   movies: Movie[],
   budget: number,
   maxMovies: number
 ): Record<number, Movie[][]> {
-  // Usar las películas mejor valoradas como candidatos para mantener el espacio de búsqueda manejable.
-  const candidates = [...movies]
+  const candidates = shuffle([...movies]
     .sort((a, b) => b.vote_average - a.vote_average)
-    .slice(0, 25);
+    .slice(0, 50)
+  );
 
   const bySize: Record<number, Movie[][]> = {};
 
   for (let size = 1; size <= maxMovies; size++) {
-    const combos: Movie[][] = [];
-    findCombosOfSize(candidates, budget, size, 0, [], combos);
+    // Genera 50 combinaciones aleatorias en lugar de todas las posibles
+    const combos = getRandomCombinations(candidates, size, 50);
 
-    // Ordenar cada grupo por rating promedio de mayor a menor.
-    combos.sort((a, b) => avgRating(b) - avgRating(a));
+    // Filtra por duración total <= budget
+    const validCombos = combos.filter(combo =>
+      combo.reduce((sum, m) => sum + m.runtime, 0) <= budget
+    );
 
-    bySize[size] = combos.slice(0, 10);
+    // Ordena por rating promedio descendente y toma top 10
+    validCombos.sort((a, b) => avgRating(b) - avgRating(a));
+    bySize[size] = validCombos.slice(0, 10);
   }
 
   return bySize;
@@ -120,7 +154,7 @@ export async function GET(request: NextRequest) {
 
     // Se combinan todas las películas y se eliminan duplicados por ID, tomando los primeros 40.
     const rawMovies: TMDBMovieRaw[] = fetchedPages.flatMap((p) => p.results || []);
-    const uniqueIds = [...new Set(rawMovies.map((m) => m.id))].slice(0, 40);
+    const uniqueIds = [...new Set(rawMovies.map((m) => m.id))].slice(0, 60);
 
     // Se obtiene el detalle completo de cada película para obtener su runtime.
     const movies = await fetchMovieDetails(uniqueIds, apiKey);
