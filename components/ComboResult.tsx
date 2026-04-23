@@ -33,12 +33,12 @@ export default function ComboResult({ movies, tripMinutes, comboIndex }: Props) 
   const pct = Math.round((totalRuntime / tripMinutes) * 100);
 
   // Etiqueta descriptiva según la cantidad de películas de la combinación.
-  const label =
+ /*  const label =
     movies.length === 1
       ? "Una película"
       : movies.length === 2
       ? "Doble función"
-      : "Triple función";
+      : "Triple función"; */
 
   return (
     <div
@@ -71,7 +71,7 @@ export default function ComboResult({ movies, tripMinutes, comboIndex }: Props) 
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
-          <div
+          {/* <div
             style={{
               background: "var(--accent)",
               color: "var(--bg)",
@@ -84,7 +84,7 @@ export default function ComboResult({ movies, tripMinutes, comboIndex }: Props) 
             }}
           >
             {label}
-          </div>
+          </div> */}
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: 16, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
