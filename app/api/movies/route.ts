@@ -52,6 +52,7 @@ function findCombosOfSize(
   }
 }
 
+// Genera combinaciones aleatorias para cada tamaño, evitando duplicados y limitando la cantidad para rendimiento
 function getRandomCombinations<T>(
   items: T[],
   size: number,
@@ -73,6 +74,7 @@ function getRandomCombinations<T>(
   return combinations;
 }
 
+// Algoritmo de mezcla de Fisher-Yates para aleatorizar el orden de los elementos
 function shuffle<T>(array: T[]): T[] {
   const result = [...array];
   for (let i = result.length - 1; i > 0; i--) {
@@ -82,6 +84,7 @@ function shuffle<T>(array: T[]): T[] {
   return result;
 }
 
+// Encuentra combinaciones de películas por tamaño, ordenadas por rating promedio y limitadas para rendimiento
 function findCombinationsBySize(
   movies: Movie[],
   budget: number,
@@ -95,17 +98,13 @@ function findCombinationsBySize(
   const bySize: Record<number, Movie[][]> = {};
 
   for (let size = 1; size <= maxMovies; size++) {
-    // Genera 50 combinaciones aleatorias en lugar de todas las posibles
-    const combos = getRandomCombinations(candidates, size, 50);
+    const combos: Movie[][] = [];
+    findCombosOfSize(candidates, budget, size, 0, [], combos);
 
-    // Filtra por duración total <= budget
-    const validCombos = combos.filter(combo =>
-      combo.reduce((sum, m) => sum + m.runtime, 0) <= budget
-    );
+    combos.sort((a, b) => avgRating(b) - avgRating(a));
 
-    // Ordena por rating promedio descendente y toma top 10
-    validCombos.sort((a, b) => avgRating(b) - avgRating(a));
-    bySize[size] = validCombos.slice(0, 10);
+    const topCombos = combos.slice(0, 20);
+    bySize[size] = shuffle(topCombos).slice(0, 10);
   }
 
   return bySize;
