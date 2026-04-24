@@ -211,49 +211,63 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const originText = searchParams.get("origin") || "";
   const destinationText = searchParams.get("destination") || "";
+  const manualMinutes = parseInt(searchParams.get("minutes") || "0");
   const genreIds = searchParams.get("genres") || "";
   const maxMovies = Math.min(parseInt(searchParams.get("maxMovies") || "2"), 5);
 
-  if (!originText || !destinationText) {
+  const isManual = !originText && !destinationText;
+
+  if (!isManual && (!originText || !destinationText)) {
     return NextResponse.json({ error: "Origen y destino son obligatorios" }, { status: 400 });
   }
 
+  if (isManual && (!manualMinutes || manualMinutes < 30)) {
+    return NextResponse.json({ error: "Ingresá al menos 30 minutos" }, { status: 400 });
+  }
+
   try {
-    // Paso 1: Geocodificar origen y destino en paralelo (ORS)
-    const [originResult, destinationResult] = await Promise.all([
-      geocodeCity(originText),
-      geocodeCity(destinationText),
-    ]);
+    let durationMinutes: number;
+    let routeInfo = null;
 
-    // Paso 2: Calcular duración de la ruta (ORS)
-    const routeData = await calculateRoute(
-  originResult.coordinates,
-  destinationResult.coordinates,
-  originResult.label,
-  destinationResult.label,
-);
+    if (isManual) {
+      // Modo manual: no se llama a ORS, se usa el tiempo directo
+      durationMinutes = manualMinutes;
+    } else {
+      // Modo ruta: geocodificación + cálculo de ruta (ORS)
+      const [originResult, destinationResult] = await Promise.all([
+        geocodeCity(originText),
+        geocodeCity(destinationText),
+      ]);
 
-    // Paso 3: Obtener pool de películas (TMDB)
-    const movies = await fetchMoviePool(genreIds);
+      const routeData = await calculateRoute(
+        originResult.coordinates,
+        destinationResult.coordinates,
+        originResult.label,
+        destinationResult.label,
+      );
 
-    // Paso 4: Generar combinaciones por tamaño
-    const bySize: Record<number, Movie[][]> = {};
-    for (let size = 1; size <= maxMovies; size++) {
-      bySize[size] = findCombosOfSize(movies, routeData.durationMinutes, size);
-    }
-
-    const response: RecommendResponse = {
-      route: {
+      durationMinutes = routeData.durationMinutes;
+      routeInfo = {
         durationMinutes: routeData.durationMinutes,
         distanceKm: routeData.distanceKm,
         originLabel: originResult.label,
         destinationLabel: destinationResult.label,
-      },
+      };
+    }
+
+    // TMDB: igual para ambos modos
+    const movies = await fetchMoviePool(genreIds);
+
+    const bySize: Record<number, Movie[][]> = {};
+    for (let size = 1; size <= maxMovies; size++) {
+      bySize[size] = findCombosOfSize(movies, durationMinutes, size);
+    }
+
+    return NextResponse.json({
+      route: routeInfo,
       bySize,
       totalMoviesFetched: movies.length,
-    };
-
-    return NextResponse.json(response);
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error interno";
     return NextResponse.json({ error: message }, { status: 500 });

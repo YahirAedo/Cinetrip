@@ -34,41 +34,37 @@ export default function Home() {
   }, []);
 
   async function handleSubmit() {
-    setLoading(true); setError(""); setSearched(false); setBySize({}); setRouteInfo(null);
+  setLoading(true); setError(""); setSearched(false); setBySize({}); setRouteInfo(null);
 
-    try {
-      if (mode === "route") {
-        if (!originText.trim() || !destText.trim()) {
-          setError("Ingresá origen y destino."); return;
-        }
-        const genreParam = selectedGenres.join(",");
-        const res = await fetch(
-          `/api/recommend?origin=${encodeURIComponent(originText)}&destination=${encodeURIComponent(destText)}&genres=${genreParam}&maxMovies=${maxMovies}`
-        );
-        const data = await res.json();
-        if (!res.ok) { setError(data.error || "Error al buscar."); return; }
-        setRouteInfo(data.route);
-        setBySize(data.bySize || {});
-      } else {
-        const minutes = parseInt(manualMinutes);
-        if (!minutes || minutes < 30) { setError("Ingresá al menos 30 minutos."); return; }
-        const genreParam = selectedGenres.join(",");
-        const res = await fetch(
-          `/api/movies?minutes=${minutes}&genres=${genreParam}&maxMovies=${maxMovies}`
-        );
-        const data = await res.json();
-        if (!res.ok) { setError(data.error || "Error al buscar."); return; }
-        setBySize(data.bySize || {});
+  try {
+    const genreParam = selectedGenres.join(",");
+    let url: string;
+
+    if (mode === "route") {
+      if (!originText.trim() || !destText.trim()) {
+        setError("Ingresá origen y destino."); return;
       }
-      setActiveTab(1);
-      setSearched(true);
-    } catch {
-      setError("Error de conexión. Intentá de nuevo.");
-    } finally {
-      setLoading(false);
+      url = `/api/recommend?origin=${encodeURIComponent(originText)}&destination=${encodeURIComponent(destText)}&genres=${genreParam}&maxMovies=${maxMovies}`;
+    } else {
+      const minutes = parseInt(manualMinutes);
+      if (!minutes || minutes < 30) { setError("Ingresá al menos 30 minutos."); return; }
+      url = `/api/recommend?minutes=${minutes}&genres=${genreParam}&maxMovies=${maxMovies}`;
     }
-  }
 
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) { setError(data.error || "Error al buscar."); return; }
+
+    setRouteInfo(data.route);
+    setBySize(data.bySize || {});
+    setActiveTab(1);
+    setSearched(true);
+  } catch {
+    setError("Error de conexión. Intentá de nuevo.");
+  } finally {
+    setLoading(false);
+  }
+}
   function reset() {
     setOriginText(""); setDestText(""); setManualMinutes("");
     setBySize({}); setRouteInfo(null); setSearched(false);
