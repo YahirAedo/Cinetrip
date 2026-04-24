@@ -214,13 +214,19 @@ export async function GET(request: NextRequest) {
   const manualMinutes = parseInt(searchParams.get("minutes") || "0");
   const genreIds = searchParams.get("genres") || "";
   const maxMovies = Math.min(parseInt(searchParams.get("maxMovies") || "2"), 5);
+  const onlyGenres = searchParams.get("onlyGenres") === "true";
+
+  // Modo especial: solo devolver géneros (para inicializar la UI)
+  if (onlyGenres) {
+    const genres = await fetchGenres();
+    return NextResponse.json({ genres });
+  }
 
   const isManual = !originText && !destinationText;
 
   if (!isManual && (!originText || !destinationText)) {
     return NextResponse.json({ error: "Origen y destino son obligatorios" }, { status: 400 });
   }
-
   if (isManual && (!manualMinutes || manualMinutes < 30)) {
     return NextResponse.json({ error: "Ingresá al menos 30 minutos" }, { status: 400 });
   }
@@ -230,22 +236,18 @@ export async function GET(request: NextRequest) {
     let routeInfo = null;
 
     if (isManual) {
-      // Modo manual: no se llama a ORS, se usa el tiempo directo
       durationMinutes = manualMinutes;
     } else {
-      // Modo ruta: geocodificación + cálculo de ruta (ORS)
       const [originResult, destinationResult] = await Promise.all([
         geocodeCity(originText),
         geocodeCity(destinationText),
       ]);
-
       const routeData = await calculateRoute(
         originResult.coordinates,
         destinationResult.coordinates,
         originResult.label,
         destinationResult.label,
       );
-
       durationMinutes = routeData.durationMinutes;
       routeInfo = {
         durationMinutes: routeData.durationMinutes,
@@ -255,8 +257,11 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // TMDB: igual para ambos modos
-    const movies = await fetchMoviePool(genreIds);
+    // Géneros y películas en paralelo
+    const [movies, genres] = await Promise.all([
+      fetchMoviePool(genreIds),
+      fetchGenres(),
+    ]);
 
     const bySize: Record<number, Movie[][]> = {};
     for (let size = 1; size <= maxMovies; size++) {
@@ -266,10 +271,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       route: routeInfo,
       bySize,
+      genres,
       totalMoviesFetched: movies.length,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error interno";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+// ─── TMDB: Lista de géneros ────────────────────────────────────────────────────
+
+async function fetchGenres(): Promise<Genre[]> {
+  const res = await fetch(
+    `https://api.themoviedb.org/3/genre/movie/list?api_key=${TMDB_API_KEY}&language=es-AR`
+  );
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.genres || [];
 }

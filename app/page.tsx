@@ -29,11 +29,14 @@ export default function Home() {
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetch("/api/genres").then((r) => r.json()).then((d) => setGenres(d.genres || []));
-  }, []);
+  // Carga géneros al montar — único fetch inicial
+useEffect(() => {
+  fetch("/api/recommend?onlyGenres=true")
+    .then((r) => r.json())
+    .then((d) => setGenres(d.genres || []));
+}, []);
 
-  async function handleSubmit() {
+async function handleSubmit() {
   setLoading(true); setError(""); setSearched(false); setBySize({}); setRouteInfo(null);
 
   try {
@@ -57,6 +60,8 @@ export default function Home() {
 
     setRouteInfo(data.route);
     setBySize(data.bySize || {});
+    // Actualizar géneros si vienen en la respuesta
+    if (data.genres?.length) setGenres(data.genres);
     setActiveTab(1);
     setSearched(true);
   } catch {
